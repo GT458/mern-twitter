@@ -3,17 +3,23 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const User = require('../../models/User');
 const jwt = require('jsonwebtoken');
-
+const keys = require('../../config/key');
 
 router.get('/test', (req, res) => res.json({ msg: "This is the user route"}));
 
 router.post('/register', (req, res) => {
   // debugger;
-  console.log(req)
-  User.findOne({ email: req.body.email })
+  const {errors, isValid} = validateRegisterInput(req.body);
+
+  if (!isValid) {
+    return res.status(400).json(errors);
+  }
+
+  User.findOne({ handle: req.body.handle })
     .then(user => {
       if (user) {
-        return res.status(400).json({email: 'A user has already registered with that email'});
+        errors.handle = "User alredy exists";
+        return res.status(400).json(errors);
       } else {
         const newUser = new User({
           handle: req.body.handle,
@@ -26,7 +32,16 @@ router.post('/register', (req, res) => {
             if (err) throw err;
             newUser.password = hash;
             newUser.save()
-              .then(user => res.json(user))
+              .then(user => {
+                const payload = { id: user.id, handle: user.handle };
+
+                jwt.sign(payload, keys.secretOrKey, { expiresIn: 3600 }, (err, token) => {
+                  res.json({
+                    success: true,
+                    token: "Bearer " + token
+                  });
+                });
+              })
               .catch(err => console.log(err));
           })
         })
@@ -35,21 +50,41 @@ router.post('/register', (req, res) => {
 })
 
 router.post('/login', (req, res) => {
-  const email = req.body.email;
+  const { errors, isValid } = validateLoginInput(req.body);
+
+  if (!isValid) {
+    return res.status(400).json(errors);
+  }
+
+  const handle = req.body.handle;
   const password = req.body.password;
 
-  User.findOne({email})
+
+  User.findOne({handle})
     .then( user => {
       if (!user) {
-        return res.status(404).json({email: 'This user does not exist'});
+        errors.handle = "This user does not exist"
+        return res.status(404).json(errors);
       }
 
       bcrypt.compare(password, user.password)
         .then(isMatch => {
           if (isMatch) {
-            res.json({msg: 'Success'});
+            const payload = {id: user.id, handle: user.handle};
+
+            jwt.sign(
+              payload,
+              keys.secretOrKey,
+              {expiresIn: 3600},
+              (err, token) => {
+                res.json({
+                  success: true,
+                  token: 'Bearer ' + token
+                });
+              });
           } else {
-            return res.status(400).json({password: 'Incorrect password'})
+            errors.password = 'Incorrect password';
+            return res.status(400).json({errors});
           }
         })
     })

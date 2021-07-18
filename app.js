@@ -4,7 +4,7 @@ const path = require('path');
 const users = require(path.resolve(__dirname, './routes/api/users'));
 const tweets = require(path.resolve(__dirname, './routes/api/tweets'));
 const bodyParser = require('body-parser');
-
+const passport = require('passport');
 const app = express();
 // const test = require('./test')
 const db = require(path.resolve(__dirname, './config/key.js')).mongoURI;
